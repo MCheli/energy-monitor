@@ -30,6 +30,28 @@ If you're running a different ESPHome energy meter, panel-tool will probably **n
 - **Wall-reference PDF.** A 2-page printout (panel layout on page 1, board CT-port mapping on page 2) tuned for sticking next to the panel. Page 2's layout matches the physical board orientation so a future-you (or future-electrician) can read the meter without consulting the laptop.
 - **Snapshots.** Saves a JSON snapshot of panel state + live meter readings on demand. Useful for diffing changes over time.
 
+## Screenshots
+
+The main panel view, with breakers on the left and right of the panel, the CT
+inventory below, and live mains readings in the header:
+
+![Main panel view](docs/screenshots/01-panel-view.png)
+
+First-run setup. Point the app at your meter's ESPHome URL. Home Assistant
+fields are optional — if you fill them in, state queries route through HA
+instead of the device directly:
+
+![Setup page](docs/screenshots/02-setup.png)
+
+The wall-reference printout — page 1 (panel layout, portrait):
+
+![Printout — panel page](docs/screenshots/03-printout-panel.png)
+
+…and page 2 (board CT-port mapping, landscape, oriented to match the physical
+board so you can read the meter at a glance):
+
+![Printout — board page](docs/screenshots/04-printout-board.png)
+
 ## Three install paths
 
 ### 1. Try it on a laptop or Pi (default)
