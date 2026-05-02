@@ -43,6 +43,20 @@
     </fieldset>
 
     <fieldset>
+      <legend>ESPHome YAML (optional)</legend>
+      <p class="help" style="margin-top:0">
+        Paste your full <code>energy_meter.yaml</code> if you want the dashboard to show the boot-time gain constants, voltage cal, and per-CT power filter multipliers from your firmware. Re-paste after every flash. Leave blank to skip — the live state still works without it.
+      </p>
+      <div class="field">
+        <label for="esphome_yaml">YAML</label>
+        <textarea id="esphome_yaml" name="esphome_yaml" rows="8" style="width:100%; font-family: ui-monospace, SF Mono, monospace; font-size: 12px;" placeholder="substitutions:
+  ct1_name: L1 Mains
+  current_cal_ct1: '55036'
+  ..."></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Home Assistant (optional)</legend>
       <p class="help" style="margin-top:0">
         Leave blank to use ESPHome direct. Fill these in if you want the app to read state through HA instead — useful when the meter isn't on the same LAN as the app.
@@ -84,7 +98,7 @@ function setStatus(kind, msg) {
 async function loadSettings() {
   const r = await fetch('/api/settings');
   const data = await r.json();
-  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default']) {
+  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default', 'esphome_yaml']) {
     const el = $(`#${key}`);
     if (el && data[key]) el.value = data[key];
   }
@@ -99,7 +113,7 @@ async function loadSettings() {
 async function saveSettings(e) {
   if (e) e.preventDefault();
   const body = {};
-  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default']) {
+  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default', 'esphome_yaml']) {
     body[key] = $(`#${key}`).value.trim();
   }
   // Only send ha_token if user typed something (otherwise leave the existing value).

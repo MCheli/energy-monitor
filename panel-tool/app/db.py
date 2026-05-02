@@ -174,7 +174,49 @@ KNOWN_SETTINGS: dict[str, dict[str, Any]] = {
                       "help": "Optional. Generate at HA → Profile → Long-Lived Access Tokens."},
     "voltage_default": {"label": "Default reference voltage", "secret": False, "required": False,
                         "help": "Used to seed cal wizards. 119.5 for North America, 230 for most of Europe."},
+    "esphome_yaml": {"label": "ESPHome YAML (paste your energy_meter.yaml)", "secret": False, "required": False,
+                     "help": "Optional. Paste your full energy_meter.yaml so the dashboard can show the boot-time current_cal_ctN, voltage_calN, and power-filter multipliers. Stored verbatim; re-paste after firmware changes."},
 }
+
+
+# ---------------------------------------------------------------------------
+# Parsing of the user's pasted ESPHome YAML for cal-display data.
+# ---------------------------------------------------------------------------
+
+def yaml_cal_constants() -> dict[str, dict[str, Any]]:
+    """Pull the static cal-display data from the user's pasted YAML.
+
+    Returns {"yamlCal": {port: cal_str, ...}, "yamlVoltCal": {1: cal, 2: cal},
+             "yamlPowerMult": {port: int, ...}}. Any of the three sub-dicts may
+    be empty if the YAML wasn't pasted or the regex didn't match.
+    """
+    import re
+    text = get_setting("esphome_yaml")
+    out = {"yamlCal": {}, "yamlVoltCal": {}, "yamlPowerMult": {p: 1 for p in range(1, 13)}}
+    if not text:
+        return out
+    for m in re.finditer(r"current_cal_ct(\d+):\s*['\"]?(\d+)['\"]?", text):
+        out["yamlCal"][int(m.group(1))] = m.group(2)
+    for m in re.finditer(r"voltage_cal(\d):\s*['\"]?(\d+)['\"]?", text):
+        out["yamlVoltCal"][int(m.group(1))] = m.group(2)
+    chip_phase_to_ct = {
+        "meter_main1": {"a": 1, "b": 2, "c": 3},
+        "meter_main2": {"a": 4, "b": 5, "c": 6},
+        "addon1_1":    {"a": 7, "b": 8, "c": 9},
+        "addon1_2":    {"a": 10, "b": 11, "c": 12},
+    }
+    for chip_id, phase_to_ct in chip_phase_to_ct.items():
+        block_pat = rf"id:\s*!extend\s+{re.escape(chip_id)}\b(.*?)(?=\n-\s+id:\s*!extend|\Z)"
+        bm = re.search(block_pat, text, re.DOTALL)
+        if not bm:
+            continue
+        block = bm.group(1)
+        for phase, ct_num in phase_to_ct.items():
+            phase_pat = rf"phase_{phase}:\s*\n\s*power:\s*\n\s*filters:\s*\[multiply:\s*(-?\d+)\s*\]"
+            pm = re.search(phase_pat, block)
+            if pm:
+                out["yamlPowerMult"][ct_num] = int(pm.group(1))
+    return out
 
 
 def get_setting(key: str, default: str = "") -> str:
@@ -210,3 +252,36 @@ def all_settings() -> dict[str, str]:
 def is_configured() -> bool:
     """True iff the minimum-required settings have been entered."""
     return bool(get_setting("esphome_url"))
+
+
+# ---------------------------------------------------------------------------
+# Calibration press log
+#
+# ESPHome's web server treats button presses as fire-and-forget — there's no
+# `last_changed` to query. So we keep our own log: a single JSON value in
+# app_settings under `cal_press_log`, mapping "{chip_id}.{action}" to the
+# UTC ISO timestamp when /api/cal/press last fired it. This means lastChanged
+# values populate even on the ESPHome-direct transport.
+# ---------------------------------------------------------------------------
+
+_CAL_LOG_KEY = "cal_press_log"
+
+
+def record_cal_press(chip_id: str, action: str) -> str:
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    raw = get_setting(_CAL_LOG_KEY) or "{}"
+    try:
+        log_data = json.loads(raw)
+    except json.JSONDecodeError:
+        log_data = {}
+    log_data[f"{chip_id}.{action}"] = ts
+    set_setting(_CAL_LOG_KEY, json.dumps(log_data))
+    return ts
+
+
+def get_cal_press_log() -> dict[str, str]:
+    raw = get_setting(_CAL_LOG_KEY) or "{}"
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {}

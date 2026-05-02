@@ -84,11 +84,13 @@ def _esphome_press_button(base: str, slug: str) -> None:
 
 
 def _esphome_fetch_state(base: str, panel_data: dict[str, Any]) -> dict[str, Any]:
-    """Read every entity ESPHome exposes via /events stream isn't worth it for a
-    one-shot snapshot. Use the JSON API: GET /sensor/<slug> per entity. We do
-    this in parallel by simply iterating; for ~30 entities on a LAN device it's
-    fast enough."""
+    """Read every entity from the device via its ESPHome web server.
+
+    ESPHome chip-level entities use a hyphenated slug ("meter_1-3" not
+    "meter_1_3"). We use panel.CHIP_ESPHOME_SLUG to translate.
+    """
     channels = panel_mod.channels_from_panel(panel_data)
+    press_log = db.get_cal_press_log()
     out: dict[str, Any] = {
         "channels": [],
         "byPort": {},
@@ -116,7 +118,8 @@ def _esphome_fetch_state(base: str, panel_data: dict[str, Any]) -> dict[str, Any
         amps = safe_state(f"/sensor/{slug}_amps")
         watts = safe_state(f"/sensor/{slug}_watts")
         ref_i = safe_state(f"/number/{slug}_ref_current")
-        ref_v = safe_state(f"/number/{ch['chip']}_ref_v_{ch['vsuf']}")
+        chip_es_slug = panel_mod.CHIP_ESPHOME_SLUG[ch["chip"]]
+        ref_v = safe_state(f"/number/{chip_es_slug}_ref_v_{ch['vsuf']}")
         port_data = {
             "port": ch["ct"], "slug": slug, "chip": ch["chip"], "vsuf": ch["vsuf"],
             "is240": ch["is240"],
@@ -129,15 +132,22 @@ def _esphome_fetch_state(base: str, panel_data: dict[str, Any]) -> dict[str, Any
         out["byPort"][ch["ct"]] = port_data
 
     for chip_id, meta in panel_mod.CHIPS.items():
+        chip_es_slug = panel_mod.CHIP_ESPHOME_SLUG[chip_id]
+        cal_buttons = {}
+        for action in panel_mod.CAL_BUTTONS:
+            cal_buttons[action] = {
+                "state": None,
+                "lastChanged": press_log.get(f"{chip_id}.{action}"),
+            }
         out["byChip"][chip_id] = {
             "id": chip_id,
             "label": meta["label"],
             "ports": meta["ports"],
             "vsuf": meta["vsuf"],
-            "chipTemp": safe_state(f"/sensor/{chip_id}_chip_temp"),
-            "refV": safe_state(f"/number/{chip_id}_ref_v_{meta['vsuf']}"),
+            "chipTemp": safe_state(f"/sensor/{chip_es_slug}_chip_temp"),
+            "refV": safe_state(f"/number/{chip_es_slug}_ref_v_{meta['vsuf']}"),
             "refVChanged": None,
-            "buttons": {},
+            "buttons": cal_buttons,
         }
     out["chipMeta"] = panel_mod.CHIPS
     return out
@@ -227,10 +237,14 @@ def fetch_state(panel_data: dict[str, Any]) -> dict[str, Any]:
     s = _settings()
     mode = transport_mode(s)
     if mode == "homeassistant":
-        return _ha_fetch_state(s, panel_data)
-    if mode == "esphome":
-        return _esphome_fetch_state(s["esphome_url"], panel_data)
-    raise DeviceError("Device not configured. Visit /setup to enter your meter URL.")
+        out = _ha_fetch_state(s, panel_data)
+    elif mode == "esphome":
+        out = _esphome_fetch_state(s["esphome_url"], panel_data)
+    else:
+        raise DeviceError("Device not configured. Visit /setup to enter your meter URL.")
+    # Augment with YAML-derived cal-display data, if the user pasted their YAML.
+    out.update(db.yaml_cal_constants())
+    return out
 
 
 def set_ref_v(chip: str, vsuf: str, value: float) -> str:
@@ -242,7 +256,7 @@ def set_ref_v(chip: str, vsuf: str, value: float) -> str:
                          {"entity_id": eid, "value": value})
         return eid
     if mode == "esphome":
-        slug = f"{chip}_ref_v_{vsuf}"
+        slug = f"{panel_mod.CHIP_ESPHOME_SLUG[chip]}_ref_v_{vsuf}"
         _esphome_set_number(s["esphome_url"], slug, value)
         return slug
     raise DeviceError("Device not configured.")
@@ -266,16 +280,17 @@ def set_ref_current(slug: str, value: float) -> str:
 def press_cal_button(action: str, chip: str) -> str:
     if action not in panel_mod.CAL_BUTTONS:
         raise ValueError(f"Unknown cal action: {action}")
-    kind, suffix = panel_mod.CAL_BUTTONS[action]
     s = _settings()
     mode = transport_mode(s)
     if mode == "homeassistant":
-        eid = f"button.{s['device_prefix']}_{kind}_{chip}{suffix}"
+        eid = panel_mod.ha_button_entity(s["device_prefix"], action, chip)
         _ha_post_service(s["ha_url"], s["ha_token"], "button", "press",
                          {"entity_id": eid})
+        db.record_cal_press(chip, action)
         return eid
     if mode == "esphome":
-        slug = f"{kind}_{chip}{suffix}"
+        slug = panel_mod.esphome_button_slug(action, chip)
         _esphome_press_button(s["esphome_url"], slug)
+        db.record_cal_press(chip, action)
         return slug
     raise DeviceError("Device not configured.")

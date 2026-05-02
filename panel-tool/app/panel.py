@@ -32,6 +32,17 @@ CHIPS: dict[str, dict[str, Any]] = {
     "addon1_10_12": {"vsuf": "2", "label": "Addon1 10–12",           "ports": [10, 11, 12]},
 }
 
+# ESPHome's web-server entity slug uses hyphens in the chip name (because the
+# upstream YAML labels them "Meter 1-3" etc.), but Home Assistant flattens those
+# hyphens back to underscores when generating entity_ids. So we keep a separate
+# lookup for the ESPHome-direct slug form.
+CHIP_ESPHOME_SLUG: dict[str, str] = {
+    "meter_1_3":    "meter_1-3",
+    "meter_4_6":    "meter_4-6",
+    "addon1_7_9":   "addon1_7-9",
+    "addon1_10_12": "addon1_10-12",
+}
+
 CT_MODEL_CAL: dict[str, str] = {
     "SCT-013-030": "8650",
     "SCT-013-100": "8650",
@@ -47,6 +58,20 @@ CAL_BUTTONS: dict[str, tuple[str, str]] = {
     "power_offset_clear": ("z2_clear", "_power_offset_cal"),
     "gain_clear":         ("z3_clear", "_gain_cal"),
 }
+
+# Per-transport button slug builders. ESPHome and HA agree on underscores
+# elsewhere but ESPHome doubles the separator after the leading step number
+# ("1__run_meter_1-3_offset_cal") and uses hyphens in the chip slug. HA flattens
+# both to single underscores ("button.<prefix>_1_run_meter_1_3_offset_cal").
+def esphome_button_slug(action: str, chip_id: str) -> str:
+    kind, suffix = CAL_BUTTONS[action]                  # kind = "1_run" / "z1_clear"
+    step, verb = kind.split("_", 1)
+    return f"{step}__{verb}_{CHIP_ESPHOME_SLUG[chip_id]}{suffix}"
+
+
+def ha_button_entity(prefix: str, action: str, chip_id: str) -> str:
+    kind, suffix = CAL_BUTTONS[action]
+    return f"button.{prefix}_{kind}_{chip_id}{suffix}"
 
 
 def slugify(label: str, port: int) -> str:
