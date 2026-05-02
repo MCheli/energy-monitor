@@ -76,6 +76,12 @@ Both values are sensitive. Generate them on the server (`openssl rand -base64 32
 
 ### Step 3 — Compose service
 
+**Image name.** The published image is `ghcr.io/<owner>/panel-tool` — note this is the *app name*, not the *repo name*. The repo `MCheli/energy-monitor` (or your fork's equivalent) holds several artifacts; the buildable container is just the panel-tool app. Don't substitute the repo name for the image name.
+
+**Image visibility.** GHCR packages default to **private** on first publish. Either:
+- Make the package public: visit `https://github.com/users/<owner>/packages/container/panel-tool/settings` → *Change visibility* → *Public*. (No REST API exists for this — UI only.) Once public, anyone (and any docker daemon, no auth) can `docker pull`.
+- Or keep it private and authenticate the homelab Docker daemon to GHCR with a PAT that has `read:packages` scope before `docker compose pull` will work.
+
 Add two services to the operator's `docker-compose.yml`. Keep style consistent with what's already there (image tags, restart policies, networks, healthchecks, label conventions). The shape:
 
 ```yaml
