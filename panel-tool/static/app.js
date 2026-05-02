@@ -29,22 +29,45 @@ function showError(msg) {
 }
 function clearError() { $('#error-banner').hidden = true; }
 
+// Spinner state — visible whenever any api() call is in flight. Counted, not
+// boolean, because we may have several requests overlapping (e.g. cal wizard
+// presses while the 5s refresh is also running).
+let _inflight = 0;
+function _spinnerInc() {
+  _inflight++;
+  const el = document.getElementById('loading-spinner');
+  if (el) el.hidden = false;
+}
+function _spinnerDec() {
+  _inflight = Math.max(0, _inflight - 1);
+  if (_inflight === 0) {
+    const el = document.getElementById('loading-spinner');
+    if (el) el.hidden = true;
+  }
+}
+
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
   if (body !== undefined) opts.body = JSON.stringify(body);
+  _spinnerInc();
   let r;
   try {
     r = await fetch(path, opts);
   } catch (e) {
-    throw new Error(`Cannot reach server (${path}). Is server.py running on localhost:8765?  ${e.message}`);
+    _spinnerDec();
+    throw new Error(`Cannot reach server (${path}).  ${e.message}`);
   }
-  if (!r.ok) {
-    let txt = '';
-    try { txt = await r.text(); } catch {}
-    throw new Error(`${method} ${path} → ${r.status}: ${txt}`);
+  try {
+    if (!r.ok) {
+      let txt = '';
+      try { txt = await r.text(); } catch {}
+      throw new Error(`${method} ${path} → ${r.status}: ${txt}`);
+    }
+    const ct = r.headers.get('Content-Type') || '';
+    return ct.includes('json') ? await r.json() : await r.text();
+  } finally {
+    _spinnerDec();
   }
-  const ct = r.headers.get('Content-Type') || '';
-  return ct.includes('json') ? r.json() : r.text();
 }
 
 async function init() {

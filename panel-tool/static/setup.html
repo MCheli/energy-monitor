@@ -80,6 +80,7 @@
     <div class="actions">
       <button type="submit" class="primary">Save settings</button>
       <button type="button" id="btn-test">Test connection</button>
+      <span id="setup-spinner" class="setup-spinner" hidden></span>
       <a href="/" id="btn-skip" hidden>Continue to panel →</a>
     </div>
     <div id="status" class="status" hidden></div>
@@ -110,6 +111,11 @@ async function loadSettings() {
   }
 }
 
+function showSpinner(on) {
+  const el = $('#setup-spinner');
+  if (el) el.hidden = !on;
+}
+
 async function saveSettings(e) {
   if (e) e.preventDefault();
   const body = {};
@@ -120,31 +126,41 @@ async function saveSettings(e) {
   const tok = $('#ha_token').value.trim();
   if (tok) body.ha_token = tok;
 
-  const r = await fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-  const data = await r.json();
-  if (!r.ok) {
-    setStatus('err', `Save failed: ${data.error || r.statusText}`);
-    return;
+  showSpinner(true);
+  try {
+    const r = await fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) {
+      setStatus('err', `Save failed: ${data.error || r.statusText}`);
+      return;
+    }
+    setStatus('ok', data.configured ? 'Saved. You can now continue to the panel.' : 'Saved, but ESPHome URL is still missing.');
+    if (data.configured) $('#btn-skip').hidden = false;
+  } finally {
+    showSpinner(false);
   }
-  setStatus('ok', data.configured ? 'Saved. You can now continue to the panel.' : 'Saved, but ESPHome URL is still missing.');
-  if (data.configured) $('#btn-skip').hidden = false;
 }
 
 async function testConnection() {
   setStatus('info', 'Testing…');
-  // Save first so the test uses the values shown.
-  await saveSettings();
-  const r = await fetch('/api/state');
-  const data = await r.json();
-  if (!r.ok) {
-    setStatus('err', `Could not reach the device: ${data.error || r.statusText}`);
-    return;
-  }
-  const v = data.voltage1;
-  if (v) {
-    setStatus('ok', `Connected. Live voltage: ${v} V (transport: ${data.transport}).`);
-  } else {
-    setStatus('info', `Connected, but no voltage reading came back. Verify the device URL and that voltage_1 is exposed.`);
+  showSpinner(true);
+  try {
+    // Save first so the test uses the values shown.
+    await saveSettings();
+    const r = await fetch('/api/state');
+    const data = await r.json();
+    if (!r.ok) {
+      setStatus('err', `Could not reach the device: ${data.error || r.statusText}`);
+      return;
+    }
+    const v = data.voltage1;
+    if (v) {
+      setStatus('ok', `Connected. Live voltage: ${v} V (transport: ${data.transport}).`);
+    } else {
+      setStatus('info', `Connected, but no voltage reading came back. Verify the device URL and that voltage_1 is exposed.`);
+    }
+  } finally {
+    showSpinner(false);
   }
 }
 
