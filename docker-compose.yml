@@ -1,0 +1,26 @@
+# Generic compose for trying panel-tool on a laptop or Pi.
+#
+# This is the "git clone && docker compose up" experience: SQLite-backed,
+# bound to localhost:8000, no auth, no Postgres. For the homelab pattern
+# (Postgres + nginx + reverse-proxy hostname) see panel-tool/docs/DEPLOYMENT.md.
+
+services:
+  panel-tool:
+    build:
+      context: ./panel-tool
+    image: panel-tool:local
+    restart: unless-stopped
+    environment:
+      # SECRET_KEY encrypts the HA token at rest. For local dev a fixed value
+      # is fine — generate a new one for any deployment that matters.
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-32+bytes-please}
+      PANEL_TOOL_DATA_DIR: /data
+      PANEL_TOOL_PORT: "8000"
+      # DATABASE_URL omitted on purpose — defaults to sqlite:///data/panel.db.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - panel_tool_data:/data
+
+volumes:
+  panel_tool_data:

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>panel-tool — Setup</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { display: flex; justify-content: center; padding: 24px; }
+  main { max-width: 720px; width: 100%; }
+  h1 { margin-top: 0; }
+  .field { margin: 14px 0; }
+  .field label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .field input { width: 100%; padding: 6px 8px; font: inherit; box-sizing: border-box; }
+  .field .help { font-size: 12px; color: #555; margin-top: 4px; }
+  .req::after { content: " *"; color: #b00; }
+  .actions { margin-top: 24px; display: flex; gap: 8px; }
+  .status { margin-top: 16px; padding: 8px 12px; border-radius: 4px; }
+  .status.ok { background: #d1fae5; border: 1px solid #10b981; }
+  .status.err { background: #fee2e2; border: 1px solid #ef4444; }
+  .status.info { background: #dbeafe; border: 1px solid #3b82f6; }
+  .secret-set { font-size: 12px; color: #059669; margin-left: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>panel-tool setup</h1>
+  <p>Tell the app where to find your energy meter. You can change these later from the Settings link in the header.</p>
+
+  <form id="setup-form">
+    <fieldset>
+      <legend>ESPHome device <span class="req"></span></legend>
+      <div class="field">
+        <label class="req" for="esphome_url">ESPHome device URL</label>
+        <input type="url" id="esphome_url" name="esphome_url" placeholder="http://energy-meter.local or http://192.168.1.50" required>
+        <div class="help">The ESPHome web server URL of your CircuitSetup energy meter. The app talks to the device directly — no Home Assistant required.</div>
+      </div>
+      <div class="field">
+        <label for="voltage_default">Default reference voltage</label>
+        <input type="number" step="0.1" id="voltage_default" name="voltage_default" placeholder="119.5">
+        <div class="help">Used to seed the calibration wizard. <strong>119.5</strong> for North American 120/240V split-phase, <strong>230</strong> for most of Europe.</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Home Assistant (optional)</legend>
+      <p class="help" style="margin-top:0">
+        Leave blank to use ESPHome direct. Fill these in if you want the app to read state through HA instead — useful when the meter isn't on the same LAN as the app.
+      </p>
+      <div class="field">
+        <label for="ha_url">HA URL</label>
+        <input type="url" id="ha_url" name="ha_url" placeholder="http://homeassistant.local:8123">
+      </div>
+      <div class="field">
+        <label for="device_prefix">Device entity prefix</label>
+        <input type="text" id="device_prefix" name="device_prefix" placeholder="energy_meter_a1b2c3">
+        <div class="help">Look at any sensor entity for your meter in HA. The prefix is everything before <code>_voltage_1</code>.</div>
+      </div>
+      <div class="field">
+        <label for="ha_token">HA long-lived access token <span id="ha-token-set" class="secret-set" hidden>(currently set)</span></label>
+        <input type="password" id="ha_token" name="ha_token" placeholder="paste a token from HA → Profile → Long-Lived Access Tokens" autocomplete="off">
+        <div class="help">Encrypted at rest. Leave blank to keep the existing value.</div>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primary">Save settings</button>
+      <button type="button" id="btn-test">Test connection</button>
+      <a href="/" id="btn-skip" hidden>Continue to panel →</a>
+    </div>
+    <div id="status" class="status" hidden></div>
+  </form>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const status = $('#status');
+function setStatus(kind, msg) {
+  status.className = `status ${kind}`;
+  status.textContent = msg;
+  status.hidden = false;
+}
+
+async function loadSettings() {
+  const r = await fetch('/api/settings');
+  const data = await r.json();
+  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default']) {
+    const el = $(`#${key}`);
+    if (el && data[key]) el.value = data[key];
+  }
+  if (data.ha_token === '__set__') {
+    $('#ha-token-set').hidden = false;
+  }
+  if (data.esphome_url) {
+    $('#btn-skip').hidden = false;
+  }
+}
+
+async function saveSettings(e) {
+  if (e) e.preventDefault();
+  const body = {};
+  for (const key of ['esphome_url', 'ha_url', 'device_prefix', 'voltage_default']) {
+    body[key] = $(`#${key}`).value.trim();
+  }
+  // Only send ha_token if user typed something (otherwise leave the existing value).
+  const tok = $('#ha_token').value.trim();
+  if (tok) body.ha_token = tok;
+
+  const r = await fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+  const data = await r.json();
+  if (!r.ok) {
+    setStatus('err', `Save failed: ${data.error || r.statusText}`);
+    return;
+  }
+  setStatus('ok', data.configured ? 'Saved. You can now continue to the panel.' : 'Saved, but ESPHome URL is still missing.');
+  if (data.configured) $('#btn-skip').hidden = false;
+}
+
+async function testConnection() {
+  setStatus('info', 'Testing…');
+  // Save first so the test uses the values shown.
+  await saveSettings();
+  const r = await fetch('/api/state');
+  const data = await r.json();
+  if (!r.ok) {
+    setStatus('err', `Could not reach the device: ${data.error || r.statusText}`);
+    return;
+  }
+  const v = data.voltage1;
+  if (v) {
+    setStatus('ok', `Connected. Live voltage: ${v} V (transport: ${data.transport}).`);
+  } else {
+    setStatus('info', `Connected, but no voltage reading came back. Verify the device URL and that voltage_1 is exposed.`);
+  }
+}
+
+document.getElementById('setup-form').addEventListener('submit', saveSettings);
+document.getElementById('btn-test').addEventListener('click', testConnection);
+loadSettings();
+</script>
+</body>
+</html>

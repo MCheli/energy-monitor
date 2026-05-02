@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energy Monitor Panel Tool</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="hdr-row hdr-row-1">
+    <h1>Energy Monitor Panel</h1>
+    <span class="stat">V1: <strong id="v1">—</strong> V</span>
+    <span class="stat">Freq: <strong id="freq">—</strong> Hz</span>
+    <span class="stat" id="reset-stat" hidden>Reset: <strong id="reset">—</strong></span>
+  </div>
+  <div class="hdr-row hdr-row-2">
+    <span class="stat">Total: <strong id="total-w">—</strong> W / <strong id="total-a">—</strong> A</span>
+    <span class="stat">L1+L2: <strong id="mains">—</strong> A</span>
+    <span class="stat" id="updated">never</span>
+    <span id="save-status" class="stat"></span>
+    <span class="hdr-spacer"></span>
+    <button id="refresh">Refresh</button>
+    <button id="snapshot">📸 Snapshot</button>
+    <button id="export-yaml">⤓ Export YAML</button>
+    <button id="print-pdf">🖨 Print PDF</button>
+    <a href="/setup" class="settings-link" title="Settings">⚙</a>
+  </div>
+</header>
+
+<div id="error-banner" hidden></div>
+
+<main>
+  <section id="panel-section">
+    <h2>Breaker Panel
+      <small>Click a breaker to edit/assign a CT · Click a CT card's <strong>Cal</strong> to calibrate</small>
+    </h2>
+
+    <div class="mains-row">
+      <h3>Main Service <small>(CTs on ports 1 and 2)</small> <span id="mains-gap" class="mains-gap-pill"></span></h3>
+      <div id="mains-cts" class="compact-cts"></div>
+    </div>
+
+    <div id="panel-grid">
+      <div class="col-header" style="grid-column:1; grid-row:1">Left Side</div>
+      <div class="col-header" style="grid-column:2; grid-row:1">Right Side</div>
+    </div>
+
+    <div class="unassigned-row">
+      <h3>Unassigned CTs <small>plugged in but not mapped to a breaker</small></h3>
+      <div id="unassigned-cts" class="compact-cts"></div>
+    </div>
+  </section>
+
+  <section id="cal-section" hidden>
+    <h2>Calibrate <span id="cal-channel-name"></span></h2>
+    <p class="cal-meta">
+      Chip: <strong id="cal-chip">—</strong> ·
+      Live V1: <span id="cal-live-v">—</span> V ·
+      Raw chip on this CT: <span id="cal-raw" class="live">—</span>
+    </p>
+    <div class="cal-grid">
+      <fieldset>
+        <legend>1. Voltage Reference</legend>
+        <label>Ref V <input type="number" step="0.01" id="cal-ref-v"></label>
+        <button data-action="set-ref-v">Set Ref V</button>
+        <button data-action="use-live-v" class="secondary">Use live V1</button>
+      </fieldset>
+      <fieldset>
+        <legend>2. Current Reference</legend>
+        <label>Ref Current (A from clamp meter) <input type="number" step="0.1" id="cal-ref-i"></label>
+        <button data-action="set-ref-i">Set Ref I</button>
+        <button data-action="use-live-i" class="secondary">Use raw chip reading</button>
+      </fieldset>
+      <fieldset>
+        <legend>3. Run Sequence</legend>
+        <button data-action="clear-all" class="warn">Clear all cal on chip</button>
+        <button data-action="run-offset">1. Offset Cal (no load)</button>
+        <button data-action="run-power-offset">2. Power Offset Cal (no load)</button>
+        <button data-action="run-gain" class="primary">3. Gain Cal (with load)</button>
+        <button data-action="run-full" class="primary">▶ Run Full Sequence</button>
+      </fieldset>
+    </div>
+    <pre id="cal-log"></pre>
+    <p class="hint">Order: Clear → Set Ref V → Run Offset (chip's CTs all idle) → Run Power Offset (idle) → Set Ref I to clamp-meter reading → Run Gain (steady reference load on this CT).</p>
+  </section>
+
+  <section id="inventory-section">
+    <h2>CTs &amp; Calibration
+      <small>physical CTs grouped by ATM90E32 chip · per-chip cal state and per-CT inventory</small>
+    </h2>
+    <div id="ct-inventory-groups"></div>
+    <div class="inventory-actions">
+      <button id="add-ct">+ Add CT</button>
+      <span id="inventory-warnings" class="muted"></span>
+    </div>
+  </section>
+</main>
+
+<dialog id="wizard-dialog">
+  <div class="wiz-header">
+    <h3 id="wiz-title">Calibration Wizard</h3>
+    <div class="wiz-progress" id="wiz-progress"></div>
+    <button id="wiz-close" class="secondary" title="Cancel and close">✕</button>
+  </div>
+  <div class="wiz-body" id="wiz-body"></div>
+  <pre id="wiz-log"></pre>
+  <div class="wiz-footer">
+    <button id="wiz-back" class="secondary">← Back</button>
+    <span id="wiz-hint" class="muted"></span>
+    <span class="hdr-spacer"></span>
+    <button id="wiz-skip" class="secondary" hidden>Skip</button>
+    <button id="wiz-next" class="primary">Continue →</button>
+  </div>
+</dialog>
+
+<dialog id="breaker-edit-dialog">
+  <h3 id="bre-title">Edit breaker</h3>
+  <div id="bre-body"></div>
+  <div class="dialog-actions">
+    <span id="bre-meta" class="muted"></span>
+    <span class="hdr-spacer"></span>
+    <button id="bre-cancel" class="secondary">Cancel</button>
+    <button id="bre-save" class="primary">Save</button>
+  </div>
+</dialog>
+
+<dialog id="notes-dialog">
+  <h3 id="notes-dialog-title">Notes</h3>
+  <textarea id="notes-textarea" rows="12" placeholder="Anything worth remembering…"></textarea>
+  <div class="dialog-actions">
+    <button id="notes-clear" class="warn">Clear</button>
+    <span class="hdr-spacer"></span>
+    <button id="notes-cancel" class="secondary">Cancel</button>
+    <button id="notes-save" class="primary">Save</button>
+  </div>
+</dialog>
+
+<div id="print-view" class="print-only">
+  <section class="print-page print-page-panel" id="print-panel-page">
+    <header class="print-header">
+      <h1>Breaker Panel</h1>
+      <div class="print-subtitle">Reference printout · panel-tool · <span id="print-date-1"></span></div>
+    </header>
+    <div class="print-panel-grid">
+      <div class="print-col-header">Left Side</div>
+      <div class="print-col-header">Right Side</div>
+      <div class="print-panel-rows" id="print-panel-rows"></div>
+    </div>
+    <footer class="print-footer">
+      <span class="print-legend">
+        <span class="print-tag print-tag-tied">240V</span> tied breaker (occupies two slots) ·
+        <span class="print-tag print-tag-gfci">GFCI</span> GFCI ·
+        <span class="print-tag print-tag-ct">CT</span> has clamped CT
+      </span>
+    </footer>
+  </section>
+
+  <section class="print-page print-page-board" id="print-board-page">
+    <header class="print-header">
+      <h1>Energy Meter Board — CT Port Mapping</h1>
+      <div class="print-subtitle">As you face the board · outer columns = ADD-ON board (top) · inner columns = MAIN board (bottom) · <span id="print-date-2"></span></div>
+    </header>
+
+    <div class="print-board-row">
+      <div class="print-board-column print-board-column-outer" id="print-board-col-789">
+        <div class="print-board-column-header"><span class="print-board-pos-tag print-pos-top">TOP</span> Add-On (left)</div>
+      </div>
+      <div class="print-board-column print-board-column-inner" id="print-board-col-123">
+        <div class="print-board-column-header"><span class="print-board-pos-tag print-pos-bot">BOTTOM</span> Main (left)</div>
+      </div>
+
+      <div class="print-board-map">
+        <div class="print-map-title">Board stack</div>
+        <div class="print-map-board print-map-addon">
+          <div class="print-map-bar"><span class="print-map-bar-left">7 · 8 · 9</span><span class="print-map-bar-mid">ADD-ON BOARD</span><span class="print-map-bar-right">12 · 11 · 10</span></div>
+          <div class="print-map-side">TOP</div>
+        </div>
+        <div class="print-map-arrow">▼ stacked on ▼</div>
+        <div class="print-map-board print-map-main">
+          <div class="print-map-bar"><span class="print-map-bar-left">1 · 2 · 3</span><span class="print-map-bar-mid">MAIN BOARD</span><span class="print-map-bar-right">6 · 5 · 4</span></div>
+          <div class="print-map-side">BOTTOM</div>
+        </div>
+        <div class="print-map-note">Outer columns are on the <strong>TOP</strong> (add-on) board.<br>Inner columns are on the <strong>BOTTOM</strong> (main) board.</div>
+      </div>
+
+      <div class="print-board-column print-board-column-inner" id="print-board-col-654">
+        <div class="print-board-column-header"><span class="print-board-pos-tag print-pos-bot">BOTTOM</span> Main (right)</div>
+      </div>
+      <div class="print-board-column print-board-column-outer" id="print-board-col-12_11_10">
+        <div class="print-board-column-header"><span class="print-board-pos-tag print-pos-top">TOP</span> Add-On (right)</div>
+      </div>
+    </div>
+
+    <footer class="print-footer">
+      <span class="print-legend">Each cell shows: port number · tape label · YAML name · model · assigned breaker · notes</span>
+    </footer>
+  </section>
+</div>
+
+<dialog id="yaml-dialog">
+  <h3>YAML export — paste into energy_meter.yaml under <code>substitutions:</code></h3>
+  <pre id="yaml-content"></pre>
+  <div class="dialog-actions">
+    <button id="yaml-copy">Copy to clipboard</button>
+    <button id="yaml-close">Close</button>
+  </div>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

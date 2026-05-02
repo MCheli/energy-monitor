@@ -1,0 +1,18 @@
+# Runtime / generated state
+panel.json
+panel.log
+snapshots/
+data/
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node (only relevant if a contributor opts into the dev screenshot helper)
+node_modules/
+package.json
+package-lock.json

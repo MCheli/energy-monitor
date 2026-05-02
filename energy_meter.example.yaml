@@ -1,0 +1,201 @@
+# CircuitSetup 6-Channel Energy Meter — main board + 1 add-on board
+# 12 CTs total (6 on main, 6 on add-on) + 1 voltage transformer.
+#
+# This is an example config you should rename to energy_meter.yaml and edit
+# for your own panel. Replace the ct*_name values with your circuit names,
+# adjust current_cal_ct* for whichever CTs you bought, and tune the
+# sign-inversion filters at the bottom for whichever direction your CTs
+# happen to be clamped.
+#
+# Upstream project:
+#   https://github.com/CircuitSetup/Expandable-6-Channel-ESP32-Energy-Meter
+
+substitutions:
+  disp_name: energy-meter
+  friendly_name: "Energy Meter"
+  update_time: 10s
+  electric_freq: "60Hz"        # "60Hz" for North America, "50Hz" elsewhere
+
+## Main board
+  main_meter_name1: Meter 1-3
+  main_meter_name2: Meter 4-6
+  main_meter_id1: meter_main1
+  main_meter_id2: meter_main2
+  ct1_name: L1 Mains
+  ct2_name: L2 Mains
+  ct3_name: Circuit 3
+  ct4_name: Circuit 4
+  ct5_name: Circuit 5
+  ct6_name: Circuit 6
+## Add-on board
+  addon1_name1: Addon1 7-9
+  addon1_name2: Addon1 10-12
+  addon1_id1: addon1_1
+  addon1_id2: addon1_2
+  ct7_name: Circuit 7
+  ct8_name: Circuit 8
+  ct9_name: Circuit 9
+  ct10_name: Circuit 10
+  ct11_name: Circuit 11
+  ct12_name: Circuit 12
+
+## Semi-Automatic Calibration — leave these on; the panel-tool drives them.
+  offset_calibration: "true"
+  gain_calibration: "true"
+
+## Gain Calibration — pick the value that matches your CTs.
+## Reference values from the CircuitSetup YAML header:
+##   20A/25mA  SCT-006:        11143
+##   30A/1V    SCT-013-030:    8650
+##   50A/1V    SCT-013-050:    15420
+##   100A/50mA SCT-013-000:    27518
+##   200A/100mA SCT-024:       27518
+##   200A/50mA SCT024TSL:      55036  (1:4000 turns; chip register caps at 65535)
+##
+## The values below assume SCT-013-030 on the branch circuits and SCT024TSL
+## on the mains. If you use different CTs, change them.
+
+## Main board
+  current_cal_ct1: '55036'       # CT1 — mains; SCT024TSL 200A/50mA
+  current_cal_ct2: '55036'       # CT2 — mains; SCT024TSL 200A/50mA
+  current_cal_ct3: '8650'        # CT3..CT6 — branch circuits, SCT-013-030 30A/1V
+  current_cal_ct4: '8650'
+  current_cal_ct5: '8650'
+  current_cal_ct6: '8650'
+## Add-on board
+  current_cal_ct7: '8650'
+  current_cal_ct8: '8650'
+  current_cal_ct9: '8650'
+  current_cal_ct10: '8650'
+  current_cal_ct11: '8650'
+  current_cal_ct12: '8650'
+
+## Voltage calibration — for the Jameco 9VAC ACU090100E8942 transformer.
+## If you use a different VT, calibrate this against a known-accurate
+## voltmeter (the panel-tool's calibration wizard handles this).
+  voltage_cal1: '7305'
+  voltage_cal2: '7305'
+
+esphome:
+  name: ${disp_name}
+  friendly_name: "${friendly_name}"
+  name_add_mac_suffix: true
+  min_version: '2025.7.0'
+  project:
+    name: circuitsetup.6c-energy-meter-1-addon
+    version: "1.7"
+
+packages:
+  remote_package:
+    url: https://github.com/CircuitSetup/Expandable-6-Channel-ESP32-Energy-Meter
+    ref: master
+    refresh: 1d
+    files:
+      - Software/ESPHome/6chan_common.yaml
+      - Software/ESPHome/meter_sensors/6chan_main_sensor.yaml
+      - Software/ESPHome/meter_sensors/6chan_addon1.yaml
+      - Software/ESPHome/status_fields/6chan_main_status.yaml
+      - Software/ESPHome/calibration/6chan_main_calibration.yaml
+      - Software/ESPHome/calibration/6chan_addon1_calibration.yaml
+
+dashboard_import:
+  package_import_url: github://CircuitSetup/Expandable-6-Channel-ESP32-Energy-Meter/Software/ESPHome/6chan_energy_meter_1-addon.yaml@master
+  import_full_config: true
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+esp32_improv:
+  authorizer: none
+
+improv_serial:
+
+web_server:
+  port: 80
+
+sensor:
+## Expose per-board totals (comment out "internal: true" lines to show them in HA)
+- id: !extend totalAmpsMain
+  internal: true
+- id: !extend totalWattsMain
+  internal: true
+- id: !extend totalAmpsAddOn1
+  internal: true
+- id: !extend totalWattsAddOn1
+  internal: true
+
+## Sign inversion + 240V doubling for individual CTs.
+##
+## Each CT can be clamped in either direction at the panel. If a clamp is
+## "backwards" (arrow pointing toward the panel instead of away), the chip
+## reports negative power for normal load — apply `multiply: -1` to flip.
+##
+## For 240V circuits where you only have one CT around one of the two legs,
+## the chip sees half the real power — apply `multiply: 2` to compensate.
+##
+## Combine the two: a backwards-clamped 240V circuit needs `multiply: -2`.
+##
+## Edit the entries below to match your own clamp orientations. The example
+## values are illustrative; remove any phase you don't need a filter on.
+
+# - id: !extend meter_main1
+#   phase_a:                         # CT1
+#     power:
+#       filters: [multiply: -1]      # backwards-clamped
+#   phase_c:                         # CT3
+#     power:
+#       filters: [multiply: -1]
+
+# - id: !extend meter_main2
+#   phase_c:                         # CT6 — 240V + backwards
+#     power:
+#       filters: [multiply: -2]
+
+# - id: !extend addon1_1
+#   phase_a:                         # CT7 — backwards
+#     power:
+#       filters: [multiply: -1]
+#   phase_c:                         # CT9 — backwards
+#     power:
+#       filters: [multiply: -1]
+
+# - id: !extend addon1_2
+#   phase_b:                         # CT11 — 240V + backwards
+#     power:
+#       filters: [multiply: -2]
+
+- platform: template
+  name: ${friendly_name} Total Amps
+  id: totalAmps
+  lambda: return id(totalAmpsMain).state + id(totalAmpsAddOn1).state ;
+  accuracy_decimals: 2
+  unit_of_measurement: A
+  device_class: current
+  update_interval: ${update_time}
+
+- platform: template
+  name: ${friendly_name} Total Watts
+  id: totalWatts
+  lambda: return id(totalWattsMain).state + id(totalWattsAddOn1).state ;
+  accuracy_decimals: 1
+  unit_of_measurement: W
+  device_class: power
+  update_interval: ${update_time}
+
+- platform: total_daily_energy
+  name: ${friendly_name} Total kWh
+  power_id: totalWatts
+  filters:
+    - multiply: 0.001
+  unit_of_measurement: kWh
+  device_class: energy
+  state_class: total_increasing

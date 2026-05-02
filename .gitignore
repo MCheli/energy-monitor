@@ -1,0 +1,36 @@
+# Local secrets — never commit
+secrets.yaml
+.env
+.env.local
+
+# Personal ESPHome config (use energy_meter.example.yaml as a template)
+energy_meter.yaml
+
+# Local agent / editor state
+.claude/
+.vscode/
+.idea/
+
+# Build output
+.esphome/
+.pio/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# Local app state (panel-tool)
+panel-tool/panel.json
+panel-tool/panel.log
+panel-tool/snapshots/
+panel-tool/data/
+*.db
+*.sqlite
+
+# OS
+.DS_Store
