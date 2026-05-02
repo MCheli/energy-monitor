@@ -83,6 +83,7 @@ async function init() {
   $('#export-yaml').addEventListener('click', exportYaml);
   $('#yaml-close').addEventListener('click', () => $('#yaml-dialog').close());
   $('#yaml-copy').addEventListener('click', copyYaml);
+  $('#yaml-view-snippet').addEventListener('click', viewSnippet);
   $('#print-pdf').addEventListener('click', () => { buildPrintView(); window.print(); });
   // Notes modal handlers
   $('#notes-save').addEventListener('click', () => closeNotesModal(true));
@@ -1225,11 +1226,34 @@ async function takeSnapshot() {
 
 async function exportYaml() {
   try {
-    const text = await api("GET", "/api/yaml-export");
-    $('#yaml-content').textContent = text;
+    // Open the dialog immediately. The "View / Copy" button lazily fetches
+    // the snippet text only if the user clicks it; downloads are direct
+    // <a href> links, no JS round-trip.
+    const status = await api("GET", "/api/export/status");
+    $('#yaml-no-stored').hidden = !!status.yamlPresent;
+    if (!status.yamlPresent) {
+      $('#yaml-full-hint').innerHTML = '<em>Generic skeleton — paste your full YAML at /setup for a real merge.</em>';
+    } else {
+      $('#yaml-full-hint').textContent = 'Your full firmware config, with our latest CT names + cal values merged in.';
+    }
+    $('#yaml-snippet-pane').hidden = true;  // collapse on each open
+    $('#yaml-snippet-pane').open = false;
     $('#yaml-dialog').showModal();
   } catch (e) {
     showError('Export failed: ' + e.message);
+  }
+}
+
+async function viewSnippet() {
+  $('#yaml-snippet-pane').hidden = false;
+  $('#yaml-snippet-pane').open = true;
+  if (!$('#yaml-content').textContent.trim()) {
+    try {
+      const text = await api("GET", "/api/export/snippet");
+      $('#yaml-content').textContent = text;
+    } catch (e) {
+      $('#yaml-content').textContent = `Failed to fetch: ${e.message}`;
+    }
   }
 }
 

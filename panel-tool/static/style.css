@@ -773,6 +773,73 @@ fieldset button { display: block; width: 100%; margin-top: 6px; }
 }
 .settings-link:hover { background: #f0f0f0; }
 
+/* === Export YAML dialog ================================================== */
+.export-dialog { width: min(640px, 92vw); padding: 0; border: 1px solid #ccc; border-radius: 6px; }
+.export-dialog::backdrop { background: rgba(0,0,0,0.4); }
+.export-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;
+}
+.export-header h3 { margin: 0; font-size: 14pt; }
+.export-header button { padding: 2px 8px; }
+.export-options {
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.export-option {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+}
+.export-option-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-option-info strong { font-size: 11pt; }
+.export-option-info .muted { font-size: 9pt; color: #6b7280; }
+.export-option-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.dl-btn {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  cursor: pointer;
+}
+.dl-btn:hover { background: #f3f4f6; }
+.dl-btn.primary { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+.dl-btn.primary:hover { background: #1d4ed8; }
+.export-snippet { margin: 0 14px 12px; }
+.export-snippet summary { cursor: pointer; padding: 4px 0; font-size: 9.5pt; color: #4b5563; }
+.export-snippet pre {
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;
+  padding: 8px 10px; font-size: 8.5pt; max-height: 240px; overflow: auto;
+  white-space: pre; margin: 6px 0;
+}
+.export-instructions {
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+.export-instructions h4 { margin: 0 0 6px; font-size: 11pt; }
+.export-instructions ol { margin: 0; padding-left: 22px; font-size: 9.5pt; line-height: 1.45; }
+.export-instructions li { margin-bottom: 6px; }
+.export-instructions pre.code {
+  background: #1f2937; color: #f3f4f6;
+  padding: 6px 10px; border-radius: 4px;
+  font-size: 8.5pt; font-family: ui-monospace, SF Mono, monospace;
+  margin: 4px 0;
+  overflow-x: auto;
+}
+.export-instructions code {
+  background: #e5e7eb; padding: 0 4px; border-radius: 2px;
+  font-family: ui-monospace, SF Mono, monospace; font-size: 9pt;
+}
+.export-instructions p.muted { font-size: 9pt; color: #6b7280; margin-top: 8px; }
+
 /* Loading spinner — small inline ring shown while any /api/* call is in flight. */
 .spinner {
   display: inline-block;

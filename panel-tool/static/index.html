@@ -199,13 +199,70 @@
   </section>
 </div>
 
-<dialog id="yaml-dialog">
-  <h3>YAML export — paste into energy_meter.yaml under <code>substitutions:</code></h3>
-  <pre id="yaml-content"></pre>
-  <div class="dialog-actions">
+<dialog id="yaml-dialog" class="export-dialog">
+  <header class="export-header">
+    <h3>Export ESPHome firmware config</h3>
+    <button id="yaml-close" class="secondary" title="Close">✕</button>
+  </header>
+
+  <section class="export-options">
+    <div class="export-option">
+      <div class="export-option-info">
+        <strong>📄 Substitutions snippet</strong>
+        <span class="muted">Just the changed lines. Paste under your existing <code>substitutions:</code>.</span>
+      </div>
+      <div class="export-option-actions">
+        <button id="yaml-view-snippet" class="secondary">View / Copy</button>
+        <a id="yaml-dl-snippet" class="dl-btn" href="/api/export/snippet" download="substitutions.yaml">⤓ Download</a>
+      </div>
+    </div>
+
+    <div class="export-option">
+      <div class="export-option-info">
+        <strong>📄 Full <code>energy_meter.yaml</code></strong>
+        <span class="muted" id="yaml-full-hint">Your full firmware config, with our latest CT names + cal values merged in.</span>
+      </div>
+      <div class="export-option-actions">
+        <a id="yaml-dl-full" class="dl-btn primary" href="/api/export/full" download="energy_meter.yaml">⤓ Download</a>
+      </div>
+    </div>
+
+    <div class="export-option">
+      <div class="export-option-info">
+        <strong>📦 Bundle ZIP</strong>
+        <span class="muted">YAML + secrets template + flash instructions, in one bundle.</span>
+      </div>
+      <div class="export-option-actions">
+        <a id="yaml-dl-zip" class="dl-btn primary" href="/api/export/zip" download="energy_meter-firmware.zip">⤓ Download</a>
+      </div>
+    </div>
+  </section>
+
+  <details id="yaml-snippet-pane" class="export-snippet" hidden>
+    <summary>Substitutions snippet (click to expand)</summary>
+    <pre id="yaml-content"></pre>
     <button id="yaml-copy">Copy to clipboard</button>
-    <button id="yaml-close">Close</button>
-  </div>
+  </details>
+
+  <section class="export-instructions">
+    <h4>How to flash these to your meter</h4>
+    <ol>
+      <li>Download the <strong>Bundle ZIP</strong> (or pick the YAML on its own if you already have a <code>secrets.yaml</code>).</li>
+      <li>Unzip somewhere on your laptop. Open <code>secrets.yaml.example</code>, fill in your Wi-Fi and generate fresh <code>api_encryption_key</code> + <code>ota_password</code> values:
+        <pre class="code">openssl rand -base64 32     # use one for each</pre>
+        Save as <code>secrets.yaml</code> (drop the <code>.example</code>).
+      </li>
+      <li><strong>Either</strong> flash from the command line:
+        <pre class="code">pip install esphome
+esphome run energy_meter.yaml</pre>
+        — first compile is ~5 min, subsequent runs ~60s. The CLI auto-detects USB or OTA.
+      </li>
+      <li><strong>Or</strong> use Home Assistant's ESPHome dashboard: <em>New device</em> → upload the YAML, paste the secrets into the add-on's secrets store, click <em>Install → Wirelessly</em>.</li>
+    </ol>
+    <p id="yaml-no-stored" class="muted" hidden>
+      <strong>Heads up:</strong> you haven't pasted your full YAML at <a href="/setup">/setup</a> yet, so the <em>Full YAML</em> and <em>Bundle</em> downloads use a generic skeleton. For a faithful merge that preserves your voltage cal, sign-inversion filters, and any custom blocks, paste your existing <code>energy_meter.yaml</code> there first.
+    </p>
+  </section>
 </dialog>
 
 <script src="/static/app.js"></script>

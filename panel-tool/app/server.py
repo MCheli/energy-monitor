@@ -31,7 +31,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import client, config, db
+from . import client, config, db, yaml_export
 from . import panel as panel_mod
 
 log = logging.getLogger(__name__)
@@ -120,7 +120,8 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return decoded == config.BASIC_AUTH
 
-    def _send(self, code: int, body: Any, content_type: str = "application/json") -> None:
+    def _send(self, code: int, body: Any, content_type: str = "application/json",
+              extra_headers: dict[str, str] | None = None) -> None:
         if isinstance(body, (dict, list)):
             body = json.dumps(body)
         if isinstance(body, str):
@@ -129,6 +130,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
@@ -197,8 +201,26 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/state":
                 return self._send(200, client.fetch_state(_load_panel_or_default()))
             if path == "/api/yaml-export":
-                content = panel_mod.yaml_export(_load_panel_or_default())
+                # Backwards-compat alias for /api/export/snippet.
+                content = yaml_export.snippet(_load_panel_or_default())
                 return self._send(200, content, "text/plain; charset=utf-8")
+            if path == "/api/export/snippet":
+                content = yaml_export.snippet(_load_panel_or_default())
+                return self._send(200, content, "text/plain; charset=utf-8",
+                                  extra_headers={"Content-Disposition": "attachment; filename=substitutions.yaml"})
+            if path == "/api/export/full":
+                content = yaml_export.merge_full_yaml(_load_panel_or_default())
+                return self._send(200, content, "text/yaml; charset=utf-8",
+                                  extra_headers={"Content-Disposition": "attachment; filename=energy_meter.yaml"})
+            if path == "/api/export/zip":
+                content = yaml_export.build_zip_bytes(_load_panel_or_default())
+                return self._send(200, content, "application/zip",
+                                  extra_headers={"Content-Disposition": "attachment; filename=energy_meter-firmware.zip"})
+            if path == "/api/export/status":
+                # Tells the UI whether the user has pasted their full YAML
+                # (so it can show a hint nudging them toward /setup if not).
+                yaml_present = bool(db.get_setting("esphome_yaml"))
+                return self._send(200, {"yamlPresent": yaml_present})
             if path == "/api/full":
                 p = _load_panel_or_default()
                 try:
