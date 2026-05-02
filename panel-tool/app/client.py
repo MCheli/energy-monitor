@@ -112,6 +112,9 @@ def _esphome_fetch_state(base: str, panel_data: dict[str, Any]) -> dict[str, Any
 
     out["voltage1"] = safe_state("/sensor/voltage_1")
     out["freq"] = safe_state("/sensor/frequency_1")
+    out["totalWatts"] = safe_state("/sensor/energy_meter_total_watts")
+    out["totalAmps"] = safe_state("/sensor/energy_meter_total_amps")
+    out["uptime"] = safe_state("/sensor/uptime")
 
     for ch in channels:
         slug = ch["slug"]
