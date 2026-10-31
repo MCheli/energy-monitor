@@ -122,3 +122,35 @@ def test_state_endpoint_says_unconfigured_with_502(server: str) -> None:
     code, _, body = _get(server, "/api/state")
     assert code == 502
     assert b"not configured" in body.lower()
+
+
+def _raw_post(base: str, path: str, body: bytes, headers: dict[str, str]) -> int:
+    req = urllib.request.Request(f"{base}{path}", data=body, headers=headers, method="POST")
+    try:
+        return urllib.request.urlopen(req).status
+    except urllib.error.HTTPError as e:
+        return e.status
+
+
+def test_post_rejects_non_json_content_type(server: str) -> None:
+    # A cross-site <form enctype="text/plain"> can't set application/json.
+    code = _raw_post(server, "/api/settings", b'{"ha_url": "http://evil"}', {"Content-Type": "text/plain"})
+    assert code == 403
+
+
+def test_post_rejects_cross_origin(server: str) -> None:
+    body = json.dumps({"ha_url": "http://evil"}).encode()
+    code = _raw_post(server, "/api/settings", body,
+                     {"Content-Type": "application/json", "Origin": "http://evil.example"})
+    assert code == 403
+    code = _raw_post(server, "/api/settings", body,
+                     {"Content-Type": "application/json", "Sec-Fetch-Site": "cross-site"})
+    assert code == 403
+
+
+def test_post_allows_same_origin(server: str) -> None:
+    host = server.split("://", 1)[1]
+    code = _raw_post(server, "/api/settings", json.dumps({"voltage_default": "120"}).encode(),
+                     {"Content-Type": "application/json", "Origin": f"http://{host}",
+                      "Sec-Fetch-Site": "same-origin"})
+    assert code == 200

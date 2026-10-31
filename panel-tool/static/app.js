@@ -869,7 +869,7 @@ function buildInventoryRow(ct) {
   const portOptions = ['<option value="">— none —</option>',
     ...PORTS.map(p => {
       const occ = panel.cts.find(c => c.port === p && c.id !== ct.id);
-      const tag = occ ? ` (used by ${occ.label || occ.id})` : '';
+      const tag = occ ? ` (used by ${escapeHtml(occ.label || occ.id)})` : '';
       return `<option value="${p}" ${ct.port === p ? 'selected' : ''}>${p}${tag}</option>`;
     })
   ];
@@ -1136,7 +1136,7 @@ function editBreaker(side, idx) {
     const occTag = occElsewhere ? ` (used at ${occBreaker.side[0].toUpperCase()}${occBreaker.pos})` : '';
     const tapePart = ct.tapeLabel ? `[${ct.tapeLabel}] ` : '';
     ctOptions.push(
-      `<option value="${ct.id}" ${isHere ? 'selected' : ''} ${occElsewhere ? 'disabled' : ''}>` +
+      `<option value="${escapeHtml(ct.id)}" ${isHere ? 'selected' : ''} ${occElsewhere ? 'disabled' : ''}>` +
       `${escapeHtml(tapePart + (ct.label || ct.id))}${portTag}${occTag}</option>`
     );
   }

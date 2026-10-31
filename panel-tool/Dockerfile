@@ -1,4 +1,6 @@
-FROM python:3.11-slim AS base
+# Pin the Debian release explicitly so a base-image retag can't silently move
+# us to a different distro.
+FROM python:3.11-slim-trixie AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -6,8 +8,12 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # psycopg2 needs libpq at runtime; build deps not needed because we use the binary wheel.
+# No curl: it was only used by the healthcheck and dragged in libcurl +
+# libbrotli1 (CVE-2026-111497). The healthcheck below uses Python instead.
+# `upgrade` picks up Debian security fixes newer than the base image tag.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl tini libpq5 \
+ && apt-get upgrade -y \
+ && apt-get install -y --no-install-recommends tini libpq5 \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -32,7 +38,7 @@ USER app
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).read()"]
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
 CMD ["python", "-m", "app.server"]
