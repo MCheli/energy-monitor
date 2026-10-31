@@ -250,7 +250,19 @@ def fetch_state(panel_data: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _check_chip(chip: str) -> None:
+    # chip / vsuf / slug are request-body values that get interpolated into
+    # device URL paths and HA entity ids, so pin them to known shapes.
+    if chip not in panel_mod.CHIPS:
+        raise ValueError(f"Unknown chip: {chip!r}")
+
+
 def set_ref_v(chip: str, vsuf: str, value: float) -> str:
+    _check_chip(chip)
+    vsuf = str(vsuf)
+    if vsuf not in ("1", "2"):
+        raise ValueError(f"Unknown voltage suffix: {vsuf!r}")
+    value = float(value)
     s = _settings()
     mode = transport_mode(s)
     if mode == "homeassistant":
@@ -266,6 +278,9 @@ def set_ref_v(chip: str, vsuf: str, value: float) -> str:
 
 
 def set_ref_current(slug: str, value: float) -> str:
+    if not isinstance(slug, str) or not panel_mod.SLUG_RE.match(slug):
+        raise ValueError(f"Invalid slug: {slug!r}")
+    value = float(value)
     s = _settings()
     mode = transport_mode(s)
     if mode == "homeassistant":
@@ -283,6 +298,7 @@ def set_ref_current(slug: str, value: float) -> str:
 def press_cal_button(action: str, chip: str) -> str:
     if action not in panel_mod.CAL_BUTTONS:
         raise ValueError(f"Unknown cal action: {action}")
+    _check_chip(chip)
     s = _settings()
     mode = transport_mode(s)
     if mode == "homeassistant":

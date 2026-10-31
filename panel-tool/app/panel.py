@@ -80,6 +80,20 @@ def slugify(label: str, port: int) -> str:
     return s or f"ct{port}"
 
 
+SLUG_RE = re.compile(r"^[a-z0-9_]+$")
+
+# Fields that end up on a single line of the exported firmware YAML (or a
+# comment on one). A newline in any of them would let a label inject
+# arbitrary YAML — including lambda: C++ — into what the user flashes.
+_ONE_LINE_FIELDS = ("label", "tapeLabel", "model")
+
+
+def _one_line(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", value)
+
+
 def chip_for_port(port: int) -> tuple[str, str]:
     return PORT_TO_CHIP[port]
 
@@ -142,6 +156,12 @@ def normalize_panel(data: dict[str, Any]) -> dict[str, Any]:
         ct.setdefault("port", None)
         ct.setdefault("is240", False)
         ct.setdefault("notes", "")
+        for key in _ONE_LINE_FIELDS:
+            ct[key] = _one_line(ct[key])
+        # The slug is interpolated into device URL paths; never trust a
+        # client-supplied one that isn't slug-shaped.
+        if not isinstance(ct.get("slug"), str) or not SLUG_RE.match(ct["slug"]):
+            ct["slug"] = ""
         if not ct.get("slug"):
             ct["slug"] = slugify(ct.get("label") or ct.get("id") or "", ct.get("port") or 0)
     for side in ("left", "right"):

@@ -123,6 +123,36 @@ substitutions:
     assert once == twice
 
 
+def test_label_newlines_cannot_inject_yaml():
+    from app import panel as pm, yaml_export as ye
+    p = pm.default_panel()
+    p["cts"][0]["label"] = "Kitchen\nesphome:\n  on_boot:\n    lambda: 'evil();'"
+    p["cts"][0]["tapeLabel"] = "A\r\nevil_key:"
+    p = pm.normalize_panel(p)
+    for out in (ye.snippet(p), ye._build_skeleton(p)):
+        assert "\nesphome:\n  on_boot" not in out
+        assert "\nevil_key:" not in out
+        assert "\n    lambda" not in out
+
+
+def test_bad_client_slug_is_replaced():
+    from app import panel as pm
+    p = pm.default_panel()
+    p["cts"][0]["slug"] = "../../switch/relay/turn_on?x="
+    p = pm.normalize_panel(p)
+    assert pm.SLUG_RE.match(p["cts"][0]["slug"])
+
+
+def test_cal_calls_reject_bad_identifiers():
+    from app import client
+    with pytest.raises(ValueError):
+        client.set_ref_current("../button/x", 1.0)
+    with pytest.raises(ValueError):
+        client.set_ref_v("meter_1_3", "1/../x", 120)
+    with pytest.raises(ValueError):
+        client.press_cal_button("offset_run", "../x")
+
+
 # ---- Zip ------------------------------------------------------------------
 
 def test_zip_contains_three_files():
