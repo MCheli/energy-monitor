@@ -22,6 +22,7 @@ Routes:
 from __future__ import annotations
 
 import base64
+import hmac
 import json
 import logging
 import os
@@ -48,6 +49,10 @@ STATIC_TYPES = {
     ".png":  "image/png",
     ".ico":  "image/x-icon",
 }
+
+# Largest request body we'll read. The biggest legitimate payload is a pasted
+# energy_meter.yaml in /api/settings, which is well under this.
+MAX_BODY_BYTES = 2 * 1024 * 1024
 
 
 def _data_subpath(*parts: str) -> Path:
@@ -118,7 +123,31 @@ class Handler(BaseHTTPRequestHandler):
             decoded = base64.b64decode(header[6:]).decode()
         except Exception:
             return False
-        return decoded == config.BASIC_AUTH
+        return hmac.compare_digest(decoded.encode(), config.BASIC_AUTH.encode())
+
+    def _check_same_origin(self) -> bool:
+        """CSRF guard for state-changing requests.
+
+        The app has no auth of its own, so without this any web page open in a
+        LAN browser could POST here (e.g. point ha_url at an attacker host and
+        have /api/state ship the stored HA token to it). Requiring a JSON
+        content type forces a CORS preflight for cross-origin fetches, which we
+        never answer; the Origin / Sec-Fetch-Site checks catch the rest.
+        """
+        ctype = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return False
+        if self.headers.get("Sec-Fetch-Site", "").lower() == "cross-site":
+            return False
+        origin = self.headers.get("Origin")
+        if origin:
+            # Compare hostnames only: nginx's $host drops the port, so a
+            # proxied Host header won't carry the one the browser used.
+            origin_host = urllib.parse.urlparse(origin).hostname or ""
+            req_host = urllib.parse.urlparse("//" + self.headers.get("Host", "")).hostname or ""
+            if not origin_host or origin_host != req_host:
+                return False
+        return True
 
     def _send(self, code: int, body: Any, content_type: str = "application/json",
               extra_headers: dict[str, str] | None = None) -> None:
@@ -138,6 +167,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_json(self) -> Any:
         n = int(self.headers.get("Content-Length", "0"))
+        if n < 0 or n > MAX_BODY_BYTES:
+            raise ValueError("request body too large")
         return json.loads(self.rfile.read(n) or b"{}")
 
     def _serve_static(self, name: str) -> None:
@@ -245,6 +276,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if not self._ok_auth():
             return
+        if not self._check_same_origin():
+            return self._send(403, {"error": "cross-origin or non-JSON request rejected"})
         path = urllib.parse.urlparse(self.path).path
         try:
             if path == "/api/settings":
