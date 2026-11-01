@@ -18,6 +18,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# requirements.txt is the pinned lockfile (compiled from requirements.in), so a rebuild never
+# pulls new library versions (an unpinned rebuild once pulled SQLAlchemy 2.1 and crash-looped).
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
