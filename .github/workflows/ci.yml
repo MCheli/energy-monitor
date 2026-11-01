@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly rebuild on a freshly pulled base so OS security fixes land without a code change.
+  # Friday 08:00 UTC, so Saturday's security sweep sees the result. Same test gate as a push.
+  schedule:
+    - cron: "0 8 * * 5"
+  workflow_dispatch:
 
 # Least privilege by default; build-image opts into packages: write below.
 permissions:
@@ -44,8 +49,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      # Publish on push, the weekly rebuild and manual runs, but only from main; PRs build only.
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -64,7 +70,9 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: ./panel-tool
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          pull: ${{ github.event_name == 'schedule' }}
+          no-cache: ${{ github.event_name == 'schedule' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

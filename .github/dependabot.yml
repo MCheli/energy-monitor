@@ -1,0 +1,37 @@
+# Weekly dependency updates. Base-image bumps (docker) pair with the Friday fresh-base rebuild in CI:
+# the rebuild picks up OS fixes inside a tag, these PRs move the tag itself.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories:
+      - "/panel-tool"
+    schedule:
+      interval: weekly
+    ignore:
+      # A Python minor bump changes the wheels the lockfile resolved; do those by hand.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Stay on the current Node major (LTS line).
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # requirements.txt is the pinned lockfile compiled from requirements.in; app libraries move only here.
+  - package-ecosystem: pip
+    directories:
+      - "/panel-tool"
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: sqlalchemy
+        versions: [">=2.1"]
