@@ -21,7 +21,10 @@ WORKDIR /app
 # requirements.txt is the pinned lockfile (compiled from requirements.in), so a rebuild never
 # pulls new library versions (an unpinned rebuild once pulled SQLAlchemy 2.1 and crash-looped).
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+# pip/setuptools/wheel are pin-bumped past the base image's copies (the old setuptools
+# vendors vulnerable wheel and jaraco.context).
+RUN pip install pip==26.3 setuptools==84.2.1 wheel==0.48.0 \
+ && pip install -r requirements.txt
 
 COPY app ./app
 COPY alembic ./alembic

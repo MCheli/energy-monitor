@@ -77,3 +77,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          load: ${{ github.event_name == 'pull_request' }}
+      - name: Smoke test the image (migrate, healthy)
+        if: github.event_name == 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          IMAGE=$(echo "$TAGS" | head -n1)
+          docker run -d --name smoke -e SECRET_KEY=ci-smoke "$IMAGE"
+          for _ in $(seq 1 45); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' smoke)" = healthy ] && break; sleep 2
+          done
+          docker logs smoke
+          [ "$(docker inspect -f '{{.State.Health.Status}}' smoke)" = healthy ]
+          docker run --rm --entrypoint python "$IMAGE" -c "import setuptools, pip; print('setuptools', setuptools.__version__, 'pip', pip.__version__)"
+          docker image inspect -f 'image size: {{.Size}} bytes' "$IMAGE"
