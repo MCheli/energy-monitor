@@ -23,8 +23,9 @@ if alembic_config.config_file_name is not None:
 
 # Hand the runtime DATABASE_URL to alembic so the migration runs against the
 # right backend. We do this here rather than at import time of alembic.ini so
-# we don't hardcode it into the file.
-alembic_config.set_main_option("sqlalchemy.url", app_config.DATABASE_URL)
+# we don't hardcode it into the file. Escape % for configparser: URL-encoded
+# passwords contain it, and an interpolation error would echo the raw URL.
+alembic_config.set_main_option("sqlalchemy.url", app_config.DATABASE_URL.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

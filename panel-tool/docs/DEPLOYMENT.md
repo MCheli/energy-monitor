@@ -108,7 +108,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://panel_tool:${PANEL_TOOL_DB_PASSWORD}@panel-tool-db:5432/panel_tool
+      DATABASE_URL: postgresql+psycopg2://panel_tool:${PANEL_TOOL_DB_PASSWORD}@panel-tool-db:5432/panel_tool
       SECRET_KEY: ${PANEL_TOOL_SECRET_KEY}
       PANEL_TOOL_DATA_DIR: /data
     volumes:

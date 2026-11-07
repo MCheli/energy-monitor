@@ -342,14 +342,8 @@ def serve() -> None:
                     "Set SECRET_KEY in production.")
 
     log.info("panel-tool listening on %s:%d  (data=%s, db=%s)",
-             config.HOST, config.PORT, config.DATA_DIR, _redact_db_url(config.DATABASE_URL))
+             config.HOST, config.PORT, config.DATA_DIR, config.redact_url(config.DATABASE_URL))
     HTTPServer((config.HOST, config.PORT), Handler).serve_forever()
-
-
-def _redact_db_url(url: str) -> str:
-    # Strip the password from logs.
-    import re
-    return re.sub(r"://([^:/@]+):([^@/]+)@", r"://\1:***@", url)
 
 
 if __name__ == "__main__":

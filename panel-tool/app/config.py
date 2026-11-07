@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from sqlalchemy.engine import make_url
+
 
 def _get(name: str, default: str | None = None, *, required: bool = False) -> str:
     val = os.environ.get(name, default)
@@ -27,6 +29,21 @@ PORT = int(_get("PANEL_TOOL_PORT", "8000"))
 # DB URL. Defaults to a SQLite file under DATA_DIR so a fresh `docker compose up`
 # works without any setup. Operators wanting Postgres set DATABASE_URL.
 DATABASE_URL = _get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'panel.db'}")
+
+# Pin the Postgres driver explicitly. A bare postgresql:// lets SQLAlchemy pick
+# the default DBAPI, which changed from psycopg2 to psycopg 3 in 2.1 — the image
+# only ships psycopg2-binary, so make that choice here instead of by version.
+if DATABASE_URL.startswith(("postgresql://", "postgres://")):
+    DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL.split("://", 1)[1]
+
+
+def redact_url(url: str) -> str:
+    """Return `url` with any password masked — safe to log."""
+    try:
+        return make_url(url).render_as_string(hide_password=True)
+    except Exception:
+        # Never fall back to the raw string: it may hold credentials.
+        return "<unparseable database URL>"
 
 # Secret used to encrypt sensitive runtime settings (HA tokens, etc.) at rest.
 # Required in production; auto-generated for SQLite default if unset (dev only).
