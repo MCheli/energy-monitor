@@ -3,7 +3,7 @@
 #   uv pip compile requirements.in -o requirements.txt --python-version 3.11 --python-platform x86_64-manylinux_2_28
 # <2.1: SQLAlchemy 2.1 makes plain postgresql:// URLs use psycopg 3, but this
 # image ships psycopg2-binary (crash: "No module named 'psycopg'").
-SQLAlchemy>=2.0,<2.1
+SQLAlchemy>=2.0.57,<2.1
 alembic>=1.13,<2.0
 psycopg2-binary>=2.9
 cryptography>=42.0
