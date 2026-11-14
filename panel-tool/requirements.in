@@ -5,5 +5,8 @@
 # image ships psycopg2-binary (crash: "No module named 'psycopg'").
 SQLAlchemy>=2.0.57,<2.1
 alembic>=1.13,<2.0
-psycopg2-binary>=2.9
-cryptography>=42.0
+# The Postgres driver. app/config.py rewrites postgresql:// to postgresql+psycopg2://,
+# so this is the only DBAPI the image needs.
+psycopg2-binary>=2.9,<3
+# Caps keep a lockfile regeneration from jumping a major version unreviewed.
+cryptography>=42.0,<51
