@@ -1,6 +1,6 @@
-# Pin the Debian release explicitly so a base-image retag can't silently move
-# us to a different distro.
-FROM python:3.11-slim-trixie AS base
+# Pin the Python patch release and the Debian release so a base-image retag can't
+# silently move us; Dependabot bumps the patch, the weekly rebuild re-pulls it for OS fixes.
+FROM python:3.11.18-slim-trixie AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
