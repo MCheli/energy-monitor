@@ -64,6 +64,12 @@ def test_health(server: str) -> None:
     assert json.loads(body) == {"ok": True}
 
 
+def test_security_headers(server: str) -> None:
+    _, headers, _ = _get(server, "/setup")
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "same-origin"
+
+
 def test_unconfigured_root_redirects_to_setup(server: str) -> None:
     code, headers, _ = _get(server, "/")
     assert code == 303

@@ -1,6 +1,6 @@
-# Pin the Debian release explicitly so a base-image retag can't silently move
-# us to a different distro.
-FROM python:3.11-slim-trixie AS base
+# Pin the Python patch release and the Debian release so a base-image retag can't
+# silently move us; Dependabot bumps the patch, the weekly rebuild re-pulls it for OS fixes.
+FROM python:3.11.18-slim-trixie AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -20,11 +20,14 @@ WORKDIR /app
 
 # requirements.txt is the pinned lockfile (compiled from requirements.in), so a rebuild never
 # pulls new library versions (an unpinned rebuild once pulled SQLAlchemy 2.1 and crash-looped).
+# --no-deps: install exactly the lockfile, nothing resolved at build time; pip check fails the
+# build if the lockfile is ever missing a dependency.
 COPY requirements.txt .
 # pip/setuptools/wheel are pin-bumped past the base image's copies (the old setuptools
 # vendors vulnerable wheel and jaraco.context).
 RUN pip install pip==26.3 setuptools==84.2.1 wheel==0.48.0 \
- && pip install -r requirements.txt
+ && pip install --no-deps -r requirements.txt \
+ && pip check
 
 COPY app ./app
 COPY alembic ./alembic
