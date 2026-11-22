@@ -8,5 +8,5 @@ mako==1.4.3
 markupsafe==3.0.4
 psycopg2-binary==2.9.13
 pycparser==3.12
-sqlalchemy==2.0.57
+sqlalchemy==2.0.58
 typing-extensions==4.16.0
